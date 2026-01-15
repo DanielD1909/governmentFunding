@@ -1,0 +1,21 @@
+{
+    "id": "danield1909.governmentFunding",
+    "name": "Government Funding",
+    "description": "This mod seeks to add semi-realistic government funding to Subway Builder. Currently not functional.",
+    "version": "0.0.1",
+    "author": {
+		"name": "DanielD1909",
+		"url": " "
+	},
+    "main": "index.js",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": " "
+	},
+	"keywords": [
+		"subway-builder",
+		"mod"
+	],
+	"subwayBuilderVersion": ">=0.12.0"
+}

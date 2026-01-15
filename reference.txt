@@ -1,0 +1,32 @@
+api: version,schemas,registerCity,modifyConstants,registerNewspaperTemplates,registerTweetTemplates,map,
+cities,ui,hooks,actions,storage,reloadMods,utils,gameState,trains,stations,popTiming,career
+
+Stations: id,name,coords,trackIds,trackGroupId,buildType,stNodeIds,routeIds,createdAt,nearbyStations
+
+Tracks: id,coords,buildType,displayType,type,reversable,interactable,length,startElevation,endElevation,trackType,
+createdAt,waterIntersectionPercentage
+
+gamestate: getStations,getRoutes,getTracks,getTrains,getDemandData,getCurrentDay,getCurrentHour,getElapsedSeconds,
+getBudget,getTicketPrice,getGameSpeed,isPaused,getBonds,getBondTypes,getRidershipStats,getLineMetrics,calculateBlueprintCost,
+getModeChoiceStats,getCompletedCommutes,getStationRidership,getRouteRidership
+
+hooks: onGameInit,onDayChange,onCityLoad,onMapReady,onStationBuilt,onRouteCreated,onTrackBuilt,onBlueprintPlaced,onDemandChange,
+onTrackChange,onTrainSpawned,onTrainDeleted,onStationDeleted,onRouteDeleted,onPauseChanged,onSpeedChanged,onMoneyChanged,onGameSaved,
+onGameLoaded,onWarning,onError,onGameEnd
+
+ui: registerComponent,unregisterComponent,getComponents,showNotification,setTheme,getTheme,getResolvedTheme,setAccentColor,
+setPrimaryColor,setCSSVariable,resetColors,addButton,addToggle,addSlider,addSelect,addText,addSeparator,addToolbarButton,
+addToolbarPanel,addFloatingPanel,getAvailableLayers,getLayerVisibility,setLayerVisibility,getAllLayerVisibility,
+setMultipleLayerVisibility
+
+actions: addMoney,subtractMoney,setMoney,setPause,setSpeed,setTicketPrice,getTicketPrice,issueBond,payBond,getBonds,setSpeedMultiplier
+
+points: id,location,jobs,residents,popIds,residentModeShare,workerModeShare
+
+pops: id,size,residenceId,jobId,drivingSeconds,drivingDistance,homeDepartureTime,workDepartureTime,lastCommute
+
+buildType: blueprint, ???
+type: null or Station
+trackIds:
+trackGroupId:
+stNodeIds:
