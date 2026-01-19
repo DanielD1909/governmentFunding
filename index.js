@@ -496,8 +496,7 @@
     var acceptRejectHold = false;
 
     api.hooks.onGameLoaded((saveName) => {
-        const check = api.storage.keys(); 
-        api.storage.set(saveName,cache)
+        const check = api.storage.keys();
         if (saveName in check) {
             const cache = api.storage.get(saveName);
             budgetCache = cache.budget;
