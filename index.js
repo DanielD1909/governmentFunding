@@ -11,12 +11,22 @@
 
     const h = React.createElement;
 
+    var startKey = 0; var key = 0;
+
     // Party stuff
 
     // P - Progressive, M - Moderate | D - Democrat, R - Republican, T - Tie | PT - Pro Transit, AT - Anti Transit, N Neutral
     const options = ['PD','MD_PT','MD_AT','MR_PT','MR_AT','MAGAR','T_PT','T_AT','DN','RN'];
     const binoptions = ['D','R'];
     const partyColors = ['#461f82','#00AEF3','#19345D','#ff7074','#E81B23','#EF7B4A','#0000FF','#FF0000'];
+    const optionNames = ['Progressive','Moderate Dem (Pro Transit)','Moderate Dem (Anti Transit)','Moderate Rep (Pro Transit)','Moderate Rep (Anti Transit)','MAGA','Tie (Pro Transit)','Tie (Anti Transit)','Democrat (Transit Neutral)','Republican (Transit Neutral)']
+
+    function partyToColor (str) {
+        return partyColors[options.indexOf(str)];
+    }
+    function partyIdToName (str) {
+        return optionNames[options.indexOf(str)];
+    }
 
     // FTA Grant Colors
     const colorScale = ['#AA0000','#cc6d00','#CCCC00','#00CC00','#007dcb']
@@ -137,22 +147,6 @@
     }
 
     // WIP Stuff, this defines the governmental control for each level
-    var Government = {
-        federal: {
-            pres: options[5],
-            sen: options[5],
-            house: options[5]
-        },
-        state: {
-            gov: options[1],
-            sen: options[1],
-            house: options[1]
-        },
-        local: {
-            mayor: options[1],
-            council: options[1]
-        }
-    } 
 
     // WIP Politics stuff, this calculates election odds
     function oddsCalc(PVI,GM,city,inc,GMN) {
@@ -321,6 +315,22 @@
     }
     // initializes current odds using base odds
     var currentOdds = baseOdds;
+    var Government = {
+        federal: {
+            pres: options[5],
+            sen: options[5],
+            house: options[5]
+        },
+        state: {
+            gov: options[3],
+            sen: options[3],
+            house: options[3]
+        },
+        local: {
+            mayor: options[1],
+            council: options[1]
+        }
+    };
 
     // stores the budgets of the various levels of government
     // stateper is the % of the state budget available to a city
@@ -344,7 +354,7 @@
         if (prov === 'NY') {
             baseOdds.PVI = 8; baseOdds.GM = 5; baseOdds.city = 75;
             budgetCache.state = 1.05 * 10**9; budgetCache.local = 200 * 10**3;
-            Government = defGov(Government,8,8,8,1,1);
+            Government = defGov(Government,8,8,8,0,1);
         } else if (prov === 'CA') {
             baseOdds.PVI = 12; baseOdds.GM = 10; baseOdds.city = 80;
             budgetCache.state = 100 * 10**6;
@@ -470,7 +480,7 @@
     function getMaxByBudget(key, cost, budget) {
         if (cost <= 0) return 100;
         var budgetVal = budget[key];
-        if (key === 'state') {budgetVal *= stateper/100;}
+        if (key === 'state') {budgetVal *= budget.stateper/100;}
         return Math.min((budgetVal / cost) * 100, 100);
     }
 
@@ -481,6 +491,22 @@
         local: 0,
         user: 40
     }
+
+    // Whether the accept button can be pressed or not
+    var acceptRejectHold = false;
+
+    api.hooks.onGameLoaded((saveName) => {
+        const check = api.storage.keys(); 
+        api.storage.set(saveName,cache)
+        if (saveName in check) {
+            const cache = api.storage.get(saveName);
+            budgetCache = cache.budget;
+            acceptRejectHold = cache.acceptReject;
+            baseOdds = cache.baseOdds;
+            percentHold = cache.pers;
+            Government = cache.gov
+        }
+    });
 
     // takes population and radius in meters and returns population density
     function densityInImperial (p,r) {
@@ -595,11 +621,9 @@
         return finalScore;
     }
 
-    // Whether the accept button can be pressed or not
-    var acceptRejectHold = false;
-
     // Menu that shows FTA Ratings
     function EvalMenu() {
+        console.log(Object.getOwnPropertyNames(api.actions))
         const stations = api.gameState.getStations();
         var statlocs = [];
         stations.forEach((stat) => {
@@ -665,6 +689,197 @@
                 }, scoreToText(denScore))
             ]),
             h('div', { className: 'text-sm font-medium'}, "Employment Served Subscore: "+scoreToText(jobScore)+" (1/3)")
+        ]);
+    }
+
+    function GovernmentMenu() {
+        const gov = Government;
+
+        return h('div', { className: 'space-y-4' }, [
+            // Header stats
+            h('div', { key: 'header', className: 'flex items-center justify-between' }, [
+                h('div', { key: 'left', className: 'flex items-center gap-2' }, [
+                    h('div', { key: 'pct', className: 'text-xl font-semibold text-primary' }, 'Federal: '),
+                ]),
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'President:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.federal.pres)+'33',
+                        color: partyToColor(gov.federal.pres)
+                    }
+                }, partyIdToName(gov.federal.pres))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'Senate:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.federal.sen)+'33',
+                        color: partyToColor(gov.federal.sen)
+                    }
+                }, partyIdToName(gov.federal.sen))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'House:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.federal.house)+'33',
+                        color: partyToColor(gov.federal.house)
+                    }
+                }, partyIdToName(gov.federal.house))
+            ]),
+            h('div', { key: 'header', className: 'flex items-center justify-between' }, [
+                h('div', { key: 'left', className: 'flex items-center gap-2' }, [
+                    h('div', { key: 'pct', className: 'text-xl font-semibold text-primary' }, 'State: '),
+                ]),
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'Governor:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.state.gov)+'33',
+                        color: partyToColor(gov.state.gov)
+                    }
+                }, partyIdToName(gov.state.gov))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'Senate:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.state.sen)+'33',
+                        color: partyToColor(gov.state.sen)
+                    }
+                }, partyIdToName(gov.state.sen))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'House:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.state.house)+'33',
+                        color: partyToColor(gov.state.house)
+                    }
+                }, partyIdToName(gov.state.house))
+            ]),
+            h('div', { key: 'header', className: 'flex items-center justify-between' }, [
+                h('div', { key: 'left', className: 'flex items-center gap-2' }, [
+                    h('div', { key: 'pct', className: 'text-xl font-semibold text-primary' }, 'Local: '),
+                ]),
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'Mayor:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.local.mayor)+'33',
+                        color: partyToColor(gov.local.mayor)
+                    }
+                }, partyIdToName(gov.local.mayor))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        alignItems: 'center',
+                        fontSize: '1rem'
+                    }
+                }, 'City Council:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium items-bottom`,
+                    style: {
+                        fontSize: '0.75rem',
+                        alignItems: 'center',
+                        background: partyToColor(gov.local.council)+'33',
+                        color: partyToColor(gov.local.council)
+                    }
+                }, partyIdToName(gov.local.council))
+            ])
         ]);
     }
 
@@ -770,6 +985,7 @@
             const total = Contribution('fed',p,c) + Contribution('state',p,c) + Contribution('local',p,c);
             budget.fed -= Contribution('fed',p,c); budget.state -= Contribution('state',p,c);
             budget.stateper -= Contribution('state',p,c)/c*100; budget.local -= Contribution('local',p,c);
+            budgetCache = budget;
             console.log(total);
             api.actions.addMoney(total);
             setacceptReject(true);
@@ -1066,14 +1282,35 @@
         ]);
     }
 
+    api.hooks.onGameSaved((saveName) => {
+        const cache = {
+            budget: budgetCache,
+            acceptReject: acceptRejectHold,
+            baseOdds: baseOdds,
+            currentOdds: currentOdds,
+            pers: percentHold,
+            gov: Government
+        };
+        api.storage.set(saveName,cache)
+    })
+
     // grants panel
     api.ui.addFloatingPanel({
         id: 'grants',
-        icon: 'Landmark',
+        icon: 'CircleDollarSign',
         tooltip: 'Federal, State, and Local Funding',
         title: 'Grants',
         size: { width: 600, height: 600 },
         render: PoliticMenu,
+    });
+    // government panel
+    api.ui.addFloatingPanel({
+        id: 'gov',
+        icon: 'Landmark',
+        tooltip: 'Federal, State, and Local Funding',
+        title: 'Government',
+        size: { width: 600, height: 600 },
+        render: GovernmentMenu,
     });
     // book panel
     api.ui.addFloatingPanel({
