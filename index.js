@@ -35,6 +35,125 @@
     const EARTH_RADIUS = 6371000;
     const FTA_RADIUS = 804.672;
 
+    // stores the budgets of the various levels of government
+    // stateper is the % of the state budget available to a city
+    var budgetCache = {
+        fed: 1500000000,
+        state: 1000000,
+        stateper: 100,
+        local: 100000,
+        user: 0
+    };
+
+    // These will be used to prevent constantly going through all demand again 
+    var popsMapCache = null;
+    var pointsCache = null;
+    
+    var constructionCache = {
+        tracks: [],
+        blueprintTracks: [],
+        cost: 0,
+        stations: [],
+        statlocs: [],
+        blueStats: [],
+        blueStatLocs: [],
+        pointsWithinBlue: [],
+        pointsWithinAll: [],
+        popsWithinBlue: [],
+        popsWithinAll: []
+    }
+
+    // haversine function for distances
+    function haversine(lat1, lon1, lat2, lon2) {
+        const toRad = Math.PI / 180;
+
+        const dLat = (lat2 - lat1) * toRad;
+        const dLon = (lon2 - lon1) * toRad;
+
+        const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * toRad) *
+            Math.cos(lat2 * toRad) *
+            Math.sin(dLon / 2) ** 2;
+
+        return 2 * EARTH_RADIUS * Math.asin(Math.sqrt(a));
+    }
+    // Get all points which are within a given radius of any of a given series of points
+    function pointsWithinRadii(points, centers, radiusMeters) {
+        var ids = [];
+        var pts = [];
+
+        points.forEach((point,id) => {
+            centers.forEach((center) => {
+                const lon = point.location[0];
+                const lat = point.location[1];
+
+                const dist = haversine(center.lat,center.lon,lat,lon);
+
+                if (dist <= radiusMeters) {
+                    ids.push(id)
+                    pts.push(point);
+                }
+            });
+        });
+
+        const result = {
+            idList: ids,
+            pointList: pts
+        }
+
+        return result;
+    }
+
+    // returns two lists, one of pops and one of those pops' ids.
+    function popsWithinStations(list){
+        var popIdList = [];
+        const withinStations = list.pointList;
+        withinStations.forEach((p) => {
+            const popids = p.popIds;
+            popids.forEach((pop) => {
+                popIdList.push(pop);
+            });
+        });
+
+        var ps = [];
+
+        popsMapCache.forEach((pop) => {
+            if (popIdList.includes(pop.id)) {
+                ps.push(pop);
+            }
+        });
+        const result = {
+            pops: ps,
+            idList: popIdList
+        }
+
+        return result;
+    }
+
+    function setConstructionCache() {
+        constructionCache.tracks = api.gameState.getTracks();
+        constructionCache.blueprintTracks = constructionCache.tracks.filter((t) => t.displayType === 'blueprint');
+        constructionCache.cost = (api.gameState.calculateBlueprintCost(constructionCache.blueprintTracks));
+        constructionCache.stations = api.gameState.getStations();
+        const blueStatsHold = []; const blueStatLocsHold = []; const statLocsHold = [];
+        constructionCache.stations.forEach((stat) => {
+            const hold = {lat: stat.coords[1], lon:stat.coords[0], statId: stat.id};
+            if (stat.buildType == "blueprint") {
+                blueStatsHold.push(stat);
+                blueStatLocsHold.push(hold);
+            }
+            statLocsHold.push(hold);
+        });
+        constructionCache.blueStats = blueStatsHold; 
+        constructionCache.blueStatLocs = blueStatLocsHold;
+        constructionCache.statlocs = statLocsHold;
+        constructionCache.pointsWithinAll = pointsWithinRadii(pointsCache,statLocsHold,FTA_RADIUS);
+        constructionCache.popsWithinAll = popsWithinStations(constructionCache.pointsWithinAll);
+        constructionCache.pointsWithinBlue = pointsWithinRadii(pointsCache,blueStatLocsHold,FTA_RADIUS);
+        constructionCache.popsWithinBlue = popsWithinStations(constructionCache.pointsWithinBlue);
+    }
+
     // inspect a function
     function inspect2(fn, args = [], label = fn.name || '(anonymous)') {
         if (typeof fn !== 'function') {
@@ -54,7 +173,7 @@
         }
     }
     // This will crash your game! Inspect the entire api
-    function inspect( 
+    /*function inspect( 
         obj,
         {
             skipKeys = [],
@@ -111,23 +230,7 @@
                 );
             }
         }
-    }
-
-    // haversine function for distances
-    function haversine(lat1, lon1, lat2, lon2) {
-        const toRad = Math.PI / 180;
-
-        const dLat = (lat2 - lat1) * toRad;
-        const dLon = (lon2 - lon1) * toRad;
-
-        const a =
-            Math.sin(dLat / 2) ** 2 +
-            Math.cos(lat1 * toRad) *
-            Math.cos(lat2 * toRad) *
-            Math.sin(dLon / 2) ** 2;
-
-        return 2 * EARTH_RADIUS * Math.asin(Math.sqrt(a));
-    }
+    }*/
 
     // currently unused, gets all points within one radius
     function pointsWithinRadius(points, center, radiusMeters) {
@@ -230,6 +333,7 @@
             return "Generic";
         }
     };
+    
 
     // Gets a random number from -3 to 3
     function getSeed() {
@@ -331,20 +435,6 @@
             council: options[1]
         }
     };
-
-    // stores the budgets of the various levels of government
-    // stateper is the % of the state budget available to a city
-    var budgetCache = {
-        fed: 1500000000,
-        state: 1000000,
-        stateper: 100,
-        local: 100000,
-        user: 0
-    };
-
-    // These will be used to prevent constantly going through all demand again 
-    var popsMapCache = null;
-    var pointsCache = null;
     
     // On city load, define the budget
     api.hooks.onCityLoad((cityCode) => {
@@ -387,34 +477,19 @@
         const { popsMap, points } = api.gameState.getDemandData();
         popsMapCache = popsMap;
         pointsCache = points;
+        setConstructionCache();
     });
 
-    // Get all points which are within a given radius of any of a given series of points
-    function pointsWithinRadii(points, centers, radiusMeters) {
-        var ids = [];
-        var pts = [];
+    api.hooks.onBlueprintPlaced((tracks) => {
+        setConstructionCache();
+    });
+    api.hooks.onTrackChange((changeType, count) => {
+        setConstructionCache();
+    });
+    api.hooks.onTrackBuilt((tracks) => {
+        setConstructionCache();
+    });
 
-        points.forEach((point,id) => {
-            centers.forEach((center) => {
-                const lon = point.location[0];
-                const lat = point.location[1];
-
-                const dist = haversine(center.lat,center.lon,lat,lon);
-
-                if (dist <= radiusMeters) {
-                    ids.push(id)
-                    pts.push(point);
-                }
-            });
-        });
-
-        const result = {
-            idList: ids,
-            pointList: pts
-        }
-
-        return result;
-    }
     
     // Election Simulator - Politics part not yet implemented
     api.hooks.onDayChange((day) => {
@@ -503,8 +578,9 @@
             acceptRejectHold = cache.acceptReject;
             baseOdds = cache.baseOdds;
             percentHold = cache.pers;
-            Government = cache.gov
+            Government = cache.gov;
         }
+        setConstructionCache();
     });
 
     // takes population and radius in meters and returns population density
@@ -556,37 +632,11 @@
         console.log(densScore);
         console.log(jobScore);
         const final = {
-            luScore: (2*densScore+jobScore)/3,
+            luScore: Math.round((2*densScore+jobScore)/3),
             denScore: densScore,
             jobScore: jobScore
         }
         return final;
-    }
-    
-    // returns two lists, one of pops and one of those pops' ids.
-    function popsWithinStations(list){
-        var popIdList = [];
-        const withinStations = list.pointList;
-        withinStations.forEach((p) => {
-            const popids = p.popIds;
-            popids.forEach((pop) => {
-                popIdList.push(pop);
-            });
-        });
-
-        var ps = [];
-
-        popsMapCache.forEach((pop) => {
-            if (popIdList.includes(pop.id)) {
-                ps.push(pop);
-            }
-        });
-        const result = {
-            pops: ps,
-            idList: popIdList
-        }
-
-        return result;
     }
 
     // Roughly calculates the amount of commutes within a blueprint
@@ -613,87 +663,186 @@
         }
     }
 
+    function getRailType(track) {
+        const trackType = track.trackType;
+        const railType = api.trains.getTrainType(trackType);
+        return railType;
+    }
+
+    function CostEffectivenessScore(factor=1) {
+        var len = 0;
+        constructionCache.blueprintTracks.forEach((track) => {
+            len += track.length;
+        })
+        console.log(len);
+        
+        const trackCost = constructionCache.cost.breakdown.trackCost+constructionCache.cost.breakdown.scissorsCrossoverCost;
+        const statCost = constructionCache.cost.breakdown.stationCost; const demoCost = constructionCache.cost.breakdown.buildingDemolitionCost;
+
+        const railType = getRailType(constructionCache.blueprintTracks[0]);
+        const trainCost = railType.stats.carCost * railType.stats.maxCars;
+        const costPerTrainHour = railType.stats.carOperationalCostPerHour * railType.stats.maxCars + railType.stats.trainOperationalCostPerHour;
+    
+        const sum = commutesCalc(constructionCache.popsWithinBlue,constructionCache.pointsWithinAll,factor);
+        console.log(sum);
+
+        const time = len / railType.stats.maxSpeed / 60 / 60;
+        const maxTrains = time / (5/60);
+        const trainHoursPerDay = time / (5/60) * 6 + time / (10/60) * 9 + time / (20/60) * 9;
+        console.log("trainHoursPerDay"+trainHoursPerDay);
+        console.log("costPerTrainHour"+costPerTrainHour);
+
+        const annualizedCost = trackCost * 0.0446 + statCost * 0.0267 + demoCost * 0.0218 + Math.round(maxTrains) * trainCost * 0.0512;
+        const upkeep = trainHoursPerDay * costPerTrainHour;
+        console.log("upkeep"+upkeep);
+        const finalCost = annualizedCost + (upkeep * 10);
+        console.log(finalCost);
+        const final = finalCost / (sum * 10 * 2);
+
+        switch(true) {
+            case (final < 8): return 5; 
+            case (final <= 9.99): return 4; 
+            case (final <= 19.99): return 3; 
+            case (final <= 34.99): return 2; 
+            default: return 1;
+        }
+        return final;
+    }
+
     // Calculates the final FTA Rating, not done yet
-    function finalScore(landScore,congScore,finScore) {
-        const justScore = (landScore+congScore)/2;
-        const finalScore = (justScore+finScore)/2;
+    function finalScore(landScore,congScore,costScore,finScore=-1) {
+        const justScore = (landScore+congScore+costScore)/3;
+        if (finScore < 0) {
+            finScore = justScore;
+        }
+        const finalScore = Math.round((justScore+finScore)/2);
         return finalScore;
     }
 
     // Menu that shows FTA Ratings
     function EvalMenu() {
-        console.log(Object.getOwnPropertyNames(api.actions))
-        const stations = api.gameState.getStations();
-        var statlocs = [];
-        stations.forEach((stat) => {
-            const hold = {lat: stat.coords[1], lon:stat.coords[0], statId: stat.id};
-            statlocs.push(hold)
-        });
-
-        const withinStations = pointsWithinRadii(pointsCache,statlocs,FTA_RADIUS);
-        console.log("withinStation array length:", withinStations.pointList?.length);
-        const relpops = popsWithinStations(withinStations);
-        const {luScore, denScore, jobScore} = LandUseScore(withinStations);
-        const comms = CongestionScore(relpops,withinStations,0.85);
-
-        console.log(luScore);
-        console.log(relpops.pops?.length);
-        console.log(comms);
+        const {luScore, denScore, jobScore} = LandUseScore(constructionCache.pointsWithinBlue);
+        const congscore = CongestionScore(constructionCache.popsWithinBlue,constructionCache.pointsWithinAll,0.85);
+        const costscore = CostEffectivenessScore(0.85);
+        const final = finalScore(luScore,congscore,costscore);
 
         return h('div', { className: 'space-y-4' }, [
             // Header stats
-            h('div', { key: 'header', className: 'flex items-center justify-between' }, [
-                h('div', { key: 'left', className: 'flex items-center gap-2' }, [
+            h('div', { key: 'header', className: 'flex items-center mb-2', style: {alignItems: 'center'}}, [
+                h('div', { key: 'left', className: 'flex gap-2' }, [
                     h('div', { key: 'pct', className: 'text-xl font-semibold text-primary' }, 'FTA CIG Evaluation: '),
                 ]),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: 'text-xl font-semibold text-primary',
+                    style: {
+                        fontSize: '1rem',
+                        background: colorScale[final-1]+'33',
+                        color: colorScale[final-1]
+                    }
+                }, scoreToText(final))
             ]),
-            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2', style: {alignItems: 'center'}}, [
                 h('div', {
                     key: 'label',
                     className: 'font-medium',
                     style: {
-                        alignItems: 'center',
                         fontSize: '1rem'
                     }
                 }, 'Land Use Rating:'),
                 h(Badge, {
                     key: 'badge',
                     variant: 'secondary',
-                    className: `font-medium items-bottom`,
+                    className: `font-medium`,
                     style: {
-                        fontSize: '0.75rem',
-                        alignItems: 'center',
+                        fontSize: '0.7rem',
                         background: colorScale[luScore-1]+'33',
                         color: colorScale[luScore-1]
                     }
                 }, scoreToText(luScore))
             ]),
-            h('div', { key: 'label-row', className: 'flex gap-2 mb-2'}, [
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2', style: {alignItems: 'center'}}, [
                 h('div', {
                     key: 'label',
                     className: 'font-medium',
                     style: {
                         fontSize: '0.7rem'
                     }
-                }, 'Population Density Subscore:'),
+                }, '(2/3) Population Density Subscore: '),
                 h(Badge, {
                     key: 'badge',
                     variant: 'secondary',
-                    className: `font-medium items-bottom`,
+                    className: `font-medium`,
                     style: {
-                        fontSize: '0.5rem',
+                        fontSize: '0.7rem',
                         background: colorScale[denScore-1]+'33',
                         color: colorScale[denScore-1],
                     }
                 }, scoreToText(denScore))
             ]),
-            h('div', { className: 'text-sm font-medium'}, "Employment Served Subscore: "+scoreToText(jobScore)+" (1/3)")
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2', style: {alignItems: 'center'}}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        fontSize: '0.7rem'
+                    }
+                }, '(1/3) Employment Served Subscore: '),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium`,
+                    style: {
+                        fontSize: '0.7rem',
+                        background: colorScale[jobScore-1]+'33',
+                        color: colorScale[jobScore-1],
+                    }
+                }, scoreToText(jobScore))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2', style: {alignItems: 'center'}}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        fontSize: '1rem'
+                    }
+                }, 'Congestion Score:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium`,
+                    style: {
+                        fontSize: '0.7rem',
+                        background: colorScale[congscore-1]+'33',
+                        color: colorScale[congscore-1]
+                    }
+                }, scoreToText(congscore))
+            ]),
+            h('div', { key: 'label-row', className: 'flex gap-2 mb-2', style: {alignItems: 'center'}}, [
+                h('div', {
+                    key: 'label',
+                    className: 'font-medium',
+                    style: {
+                        fontSize: '1rem'
+                    }
+                }, 'Cost Effectiveness Score:'),
+                h(Badge, {
+                    key: 'badge',
+                    variant: 'secondary',
+                    className: `font-medium`,
+                    style: {
+                        fontSize: '0.7rem',
+                        background: colorScale[costscore-1]+'33',
+                        color: colorScale[costscore-1]
+                    }
+                }, scoreToText(costscore))
+            ])
         ]);
     }
 
     function GovernmentMenu() {
         const gov = Government;
-
         return h('div', { className: 'space-y-4' }, [
             // Header stats
             h('div', { key: 'header', className: 'flex items-center justify-between' }, [
@@ -884,9 +1033,7 @@
 
     // Menu that will be renamed later, this handles the grant financial value and stuff
     function PoliticMenu() {
-        const tracks = api.gameState.getTracks(); 
-        const blueprintTracks = tracks.filter((t) => t.displayType === 'blueprint');
-        const cost = (api.gameState.calculateBlueprintCost(blueprintTracks)).totalCost;
+        const cost = constructionCache.cost.totalCost;
 
         // Percents for each level
         var [percents, setPercents] = React.useState({
@@ -994,7 +1141,7 @@
         var acceptButton = () => {
             return h(Button, {
                 className: 'flex gap-4 justify-center text-xs p-2 rounded border-2 border-green-500 bg-green-500/20 text-green-400 hover:bg-green-500/30',
-                onClick: () => acceptGrant(percents,cost),
+                onClick: () => acceptGrant(percents,cost,budgetCache),
                 disabled: acceptReject
             }, 'Accept')
         }
@@ -1288,7 +1435,8 @@
             baseOdds: baseOdds,
             currentOdds: currentOdds,
             pers: percentHold,
-            gov: Government
+            gov: Government,
+            construction: constructionCache
         };
         api.storage.set(saveName,cache)
     })
