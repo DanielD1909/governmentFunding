@@ -11,6 +11,18 @@
 
     const h = React.createElement;
 
+    for (var j in api) {
+        console.log(j+": "+Object.getOwnPropertyNames(api[j]))
+    }
+    
+    const ranges = window.SubwayBuilderAPI.popTiming.getCommuteTimeRanges();
+    ranges.forEach((item, index) => {
+        console.log(`Item ${index}:`);
+        console.log("Keys:", Object.keys(item));
+        console.log("Own property names:", Object.getOwnPropertyNames(item));
+        console.log("Entries:", Object.entries(item));
+    });
+
     var startKey = 0; var key = 0;
 
     // Party stuff
@@ -1467,6 +1479,10 @@
         title: 'FTA Evaluation',
         size: { width: 600, height: 600 },
         render: EvalMenu,
+    });
+
+    api.hooks.onGameEnd(() => {
+        console.log('Game Ended!');
     });
 
     api.ui.showNotification('Politics loaded!', 'success');
